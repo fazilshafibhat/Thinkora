@@ -38,7 +38,15 @@ export function ChatMessages({ messages, status }: ChatMessagesProps) {
   return (
     <Conversation>
       <ConversationContent className="py-8">
-        {messages.map((message) => (
+        {messages
+          // Hide empty assistant bubbles (e.g. a reply that failed before any text).
+          .filter(
+            (message, index) =>
+              message.role !== "assistant" ||
+              getMessageText(message).trim() !== "" ||
+              (status === "streaming" && index === messages.length - 1)
+          )
+          .map((message) => (
           <Message key={message.id} from={message.role}>
             <MessageContent>
               <MessageResponse>{getMessageText(message)}</MessageResponse>

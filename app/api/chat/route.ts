@@ -1,4 +1,5 @@
 import { loadChatMessages, saveChatMessages } from "@/features/ai/actions/chat-store";
+import { getFriendlyAIErrorMessage } from "@/features/ai/utils/error-message";
 import { getChatModel } from "@/features/ai/utils/model";
 import { requireUser } from "@/features/auth/action/require-user";
 import { prisma } from "@/lib/db";
@@ -57,9 +58,16 @@ export async function POST(req: Request) {
            stream:result.stream,
            originalMessages:messages,
            generateMessageId:createIdGenerator({prefix:"msg" , size:16}),
+           // Send a user-safe message to the browser; streamText logs the full error on the server.
+           onError: getFriendlyAIErrorMessage,
            onEnd:async({messages:finalMessages})=>{
             try {
-                await saveChatMessages(id , finalMessages , {updateTitle:false})
+                // Skip empty assistant messages left behind by a failed reply.
+                const toSave = finalMessages.filter(
+                    (m) => m.role !== "assistant" ||
+                        m.parts.some((p) => p.type === "text" && p.text.trim() !== "")
+                );
+                await saveChatMessages(id , toSave , {updateTitle:false})
             } catch (error) {
                 console.error(error);
             }

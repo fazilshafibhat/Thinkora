@@ -7,7 +7,9 @@ import { useChat } from "@ai-sdk/react"
 import React, { useMemo } from 'react'
 import { useConversations } from '../hooks/use-conversation';
 import { queryKeys } from '../utils/query-keys';
-import { toast } from 'sonner';
+import { AlertCircleIcon, RotateCcwIcon } from 'lucide-react';
+import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { ChatEmpty } from './chat-empty';
 import { ChatMessages } from './chat-messages';
 import { ChatComposer } from './chat-composer';
@@ -36,7 +38,8 @@ export const ConversationView = ({ conversationId, initialMessages, firstName }:
         })
     }), []);
 
-    const { messages, sendMessage, status } = useChat({
+    // Errors are shown inline above the composer (see below), with a Retry button.
+    const { messages, sendMessage, regenerate, clearError, error, status } = useChat({
         id: conversationId,
         messages: initialMessages,
         transport,
@@ -45,10 +48,9 @@ export const ConversationView = ({ conversationId, initialMessages, firstName }:
                 queryKey: queryKeys.conversations.all,
             });
         },
-        onError: (error) => {
-            toast.error(error.message);
-        },
     })
+    // Lock the composer only while a reply is in flight, so it unlocks after an error.
+    const isBusy = status === "submitted" || status === "streaming";
     const title =
     conversations?.find((item) => item.id === conversationId)?.title ?? "Chat";
 
@@ -66,11 +68,37 @@ export const ConversationView = ({ conversationId, initialMessages, firstName }:
                 <ChatMessages messages={messages} status={status} />
             )}
 
+            {error ? (
+                <div className="mx-auto w-full max-w-3xl px-4 pb-2">
+                    <Alert variant="destructive" role="alert">
+                        <AlertCircleIcon />
+                        <AlertDescription className="pr-20">
+                            {error.message || "Something went wrong generating a reply."}
+                        </AlertDescription>
+                        <AlertAction>
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                    clearError();
+                                    void regenerate();
+                                }}
+                            >
+                                <RotateCcwIcon />
+                                Retry
+                            </Button>
+                        </AlertAction>
+                    </Alert>
+                </div>
+            ) : null}
+
             <ChatComposer
                 onSend={(text) => {
+                    if (error) clearError();
                     void sendMessage({ text });
                 }}
-                isSending={status !== "ready"}
+                isSending={isBusy}
                 autoFocus
             />
         </div>
